@@ -1,0 +1,9 @@
+[submodule "Plugins/RammsCore"]
+	path = Plugins/RammsCore
+	url = git@github.com:atdev-inc/ramms-core
+[submodule "Plugins/RammsUI"]
+	path = Plugins/RammsUI
+	url = git@github.com:atdev-inc/ramms-ui
+[submodule "Plugins/CameraCapture"]
+	path = Plugins/CameraCapture
+	url = git@github.com:finger563/unreal-camera-capture

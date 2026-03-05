@@ -1,0 +1,38 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.7",
+	"Category": "",
+	"Description": "Project Implementing the User Interface for the RAMMP Prototype",
+	"Modules": [
+		{
+			"Name": "RammpUI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "Aura",
+			"Enabled": true
+		},
+		{
+			"Name": "RemoteControlActorModifierBridge",
+			"Enabled": true
+		},
+		{
+			"Name": "RemoteControlComponents",
+			"Enabled": true
+		},
+		{
+			"Name": "RemoteControlWebInterface",
+			"Enabled": true
+		}
+	]
+}
