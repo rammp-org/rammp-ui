@@ -33,6 +33,10 @@
 		{
 			"Name": "RemoteControlWebInterface",
 			"Enabled": true
+		},
+		{
+			"Name": "RammsStreaming",
+			"Enabled": true
 		}
 	]
 }
