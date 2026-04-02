@@ -273,7 +273,9 @@ RammsUI ──→ RammsStreaming ──→ CameraCapture
 Multi-camera provider architecture with a streaming bridge. Display modes
 include Fullscreen, Windowed, and Corner overlay. The camera widget maintains
 aspect ratio automatically and switches between live simulation feeds and
-external RGBD streams.
+external RGBD streams. Streams are associated via metadata-driven GroupID and
+Role tags, enabling automatic depth-to-color stream linking and format-aware
+depth scaling.
 
 ### 2. 3D Projection (PGM)
 GPU-accelerated depth-to-3D mesh reconstruction via World Position Offset
@@ -391,6 +393,13 @@ Robot RGBD cameras → ROS 2 → Python bridge → RMSS TCP :30030
 The `StreamCameraBridge` is demand-driven: it only produces CPU-side raw data
 when a subscriber explicitly requests it (e.g., CPU PGM mode). GPU subscribers
 (camera widget, GPU PGM) receive texture references directly without readback.
+
+**Stream associations:** Streams are grouped by `GroupID` metadata and tagged
+with roles (`color`, `depth`, `mask`, `infrared`). The `StreamCameraBridge`
+tracks a persistent channel→stream_id mapping and re-registers streams when the
+sender's `stream_id` metadata override changes. The projection manager uses
+GroupID+Role matching to automatically link depth streams to their corresponding
+color projectors and apply appropriate depth format scaling.
 
 ## Python Tools
 
