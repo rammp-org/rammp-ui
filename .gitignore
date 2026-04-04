@@ -77,4 +77,5 @@ DerivedDataCache/*
 .DS_Store
 
 # PowerSheel script
-.ps1
+*.ps1
+    
