@@ -75,3 +75,7 @@ DerivedDataCache/*
 .vsconfig
 .vs
 .DS_Store
+
+# PowerSheel script
+*.ps1
+    
