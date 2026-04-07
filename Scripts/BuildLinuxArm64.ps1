@@ -41,7 +41,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ── Paths ──────────────────────────────────────────────────────────
+# -- Paths -----------------------------------------------------------------
 $ProjectRoot  = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $UProject     = Join-Path $ProjectRoot "RammpUI.uproject"
 $PluginsDir   = Join-Path $ProjectRoot "Plugins"
@@ -63,7 +63,7 @@ $EnginePlugins = @(
     }
 )
 
-# ── Validation ─────────────────────────────────────────────────────
+# -- Validation ------------------------------------------------------------
 if (-not (Test-Path $UProject)) {
     Write-Error "Project file not found: $UProject"
     exit 1
@@ -79,7 +79,7 @@ foreach ($plugin in $EnginePlugins) {
     }
 }
 
-# ── Helper: strip PlatformAllowList from a .uplugin ───────────────
+# -- Helper: strip PlatformAllowList from a .uplugin ----------------------
 function Remove-PlatformAllowList([string]$UPluginPath) {
     $json = Get-Content $UPluginPath -Raw | ConvertFrom-Json
 
@@ -99,12 +99,12 @@ function Remove-PlatformAllowList([string]$UPluginPath) {
     }
 }
 
-# ── Step 1 — Copy engine plugins into project ─────────────────────
+# -- Step 1: Copy engine plugins into project -----------------------------
 $copiedDirs = @()
 foreach ($plugin in $EnginePlugins) {
     $dest = Join-Path $PluginsDir $plugin.Name
     if (Test-Path $dest) {
-        Write-Warning "$($plugin.Name) already exists in Plugins/ — skipping copy."
+        Write-Warning "$($plugin.Name) already exists in Plugins/ - skipping copy."
     } else {
         Write-Host "Copying $($plugin.Name) from engine..."
         Copy-Item -Path $plugin.Source -Destination $dest -Recurse
@@ -112,7 +112,7 @@ foreach ($plugin in $EnginePlugins) {
     }
 }
 
-# ── Step 2 — Strip PlatformAllowList ──────────────────────────────
+# -- Step 2: Strip PlatformAllowList --------------------------------------
 foreach ($plugin in $EnginePlugins) {
     $dest = Join-Path $PluginsDir $plugin.Name
     $upluginFiles = Get-ChildItem -Path $dest -Filter "*.uplugin" -Recurse
@@ -122,7 +122,7 @@ foreach ($plugin in $EnginePlugins) {
     }
 }
 
-# ── Step 3 — Package ──────────────────────────────────────────────
+# -- Step 3: Package ------------------------------------------------------
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " Packaging RammpUI for LinuxArm64 ($Config)" -ForegroundColor Cyan
@@ -152,7 +152,7 @@ try {
     $buildExitCode = 1
 }
 
-# ── Step 4 — Cleanup copied plugins ──────────────────────────────
+# -- Step 4: Cleanup copied plugins ---------------------------------------
 if ($NoClean) {
     Write-Host "Skipping cleanup (-NoClean specified). Copied plugins remain in Plugins/."
 } else {
@@ -164,7 +164,7 @@ if ($NoClean) {
     }
 }
 
-# ── Result ────────────────────────────────────────────────────────
+# -- Result ----------------------------------------------------------------
 Write-Host ""
 if ($buildExitCode -eq 0) {
     Write-Host "Build SUCCEEDED. Output: $ArchiveDir" -ForegroundColor Green
