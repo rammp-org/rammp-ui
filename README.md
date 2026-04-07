@@ -425,6 +425,63 @@ Connect to RMSS port **30030** for frame streaming. Key commands:
 | `ramms-notify` | Push UI notifications |
 | `ramms-status` | Update status panel (battery, speed, mode, e-stop) |
 
+## Packaging
+
+### Windows (Win64)
+
+Package from the editor (**Platforms → Windows → Package Project**) or via
+command line:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\RunUAT.bat" `
+    BuildCookRun `
+    -project="$PWD\RammpUI.uproject" `
+    -targetplatform=Win64 -clientconfig=Development `
+    -build -cook -stage -pak -archive `
+    -archivedirectory="$PWD\Packaged\Win64"
+```
+
+### Linux ARM64 (Nvidia Jetson)
+
+UE 5.7's bundled **RemoteControl** and **WebSocketNetworking** plugins restrict
+certain modules to `Win64 / Mac / Linux` via `PlatformAllowList`, which excludes
+`LinuxArm64`. To work around this the build script copies both plugins into the
+project, strips the allow-list, packages, then cleans up.
+
+**Prerequisites:**
+
+- UE 5.7 with Linux ARM64 cross-compilation toolchain installed (via Epic
+  Games Launcher → Engine → Target Platforms → Linux ARM64).
+- PowerShell 5.1+ (included with Windows 10/11).
+
+**Quick start:**
+
+```powershell
+.\Scripts\BuildLinuxArm64.ps1                       # Development build
+.\Scripts\BuildLinuxArm64.ps1 -Config Shipping      # Shipping build
+```
+
+**Options:**
+
+| Parameter     | Default                                       | Description                              |
+|---------------|-----------------------------------------------|------------------------------------------|
+| `-EnginePath` | `C:\Program Files\Epic Games\UE_5.7`         | UE installation root                     |
+| `-Config`     | `Development`                                 | `Development` or `Shipping`              |
+| `-ArchiveDir` | `<Project>\Packaged\LinuxArm64`               | Output directory for the packaged build  |
+| `-NoClean`    | *(off)*                                       | Keep copied plugins after build          |
+
+**What the script does:**
+
+1. Copies `RemoteControl` (from `Engine/Plugins/VirtualProduction/`) and
+   `WebSocketNetworking` (from `Engine/Plugins/Experimental/`) into `Plugins/`.
+2. Removes `PlatformAllowList` from every module entry in the copied `.uplugin`
+   files so that UBT compiles them for LinuxArm64.
+3. Runs `RunUAT BuildCookRun` targeting LinuxArm64.
+4. Deletes the copied plugins (unless `-NoClean` is passed).
+
+> **Note:** The copied plugins are only needed during the build. They must not
+> be committed — the engine's own copies are used for Win64 editor/runtime.
+
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
