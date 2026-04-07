@@ -19,19 +19,7 @@
 			]
 		},
 		{
-			"Name": "Aura",
-			"Enabled": false
-		},
-		{
-			"Name": "RemoteControlActorModifierBridge",
-			"Enabled": true
-		},
-		{
-			"Name": "RemoteControlComponents",
-			"Enabled": true
-		},
-		{
-			"Name": "RemoteControlWebInterface",
+			"Name": "RemoteControl",
 			"Enabled": true
 		},
 		{

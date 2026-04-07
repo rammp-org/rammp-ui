@@ -76,6 +76,10 @@ DerivedDataCache/*
 .vs
 .DS_Store
 
-# PowerSheel script
-*.ps1
+# PowerSheel script only in the top-level folder
+./*.ps1
+
+# packaged directory
 Packaged/
+Plugins/RemoteControl
+Plugins/WebSocketNetworking
