@@ -3,7 +3,7 @@
     Packages RammpUI for Windows.
 
 .DESCRIPTION
-    UE 5.7's bundled RemoteControl and WebSocketNetworking plugins restrict
+    UE 5.8's bundled RemoteControl and WebSocketNetworking plugins restrict
     their modules to Win64/Mac/Linux via PlatformAllowList, which excludes
     LinuxArm64.  This script:
 
@@ -13,7 +13,7 @@
       4. Cleans up the copied plugins regardless of build outcome.
 
 .PARAMETER EnginePath
-    Root of the UE installation (default: C:\Program Files\Epic Games\UE_5.7).
+    Root of the UE installation (default: C:\Program Files\Epic Games\UE_5.8).
 
 .PARAMETER Config
     Build configuration: Development (default) or Shipping.
@@ -24,11 +24,11 @@
 .EXAMPLE
     .\Scripts\BuildWindowsX86_64.ps1
     .\Scripts\BuildWindowsX86_64.ps1 -Config Shipping
-    .\Scripts\BuildWindowsX86_64.ps1 -EnginePath "D:\UE_5.7"
+    .\Scripts\BuildWindowsX86_64.ps1 -EnginePath "D:\UE_5.8"
 #>
 [CmdletBinding()]
 param(
-    [string]$EnginePath = "C:\Program Files\Epic Games\UE_5.7",
+    [string]$EnginePath = "C:\Program Files\Epic Games\UE_5.8",
     [ValidateSet("Development", "Shipping")]
     [string]$Config = "Development",
     [string]$ArchiveDir = ""

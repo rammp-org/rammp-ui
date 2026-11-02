@@ -1,6 +1,6 @@
 # RammpUI
 
-Unreal Engine 5.7 project implementing the user interface for the **RAMMP**
+Unreal Engine 5.8 project implementing the user interface for the **RAMMP**
 (Robotic Autonomous Mobile Manipulation Platform) prototype. Provides real-time
 RGBD camera streaming, 3D point cloud (PGM) visualization, robot teleoperation,
 modular UI layouts, and a Python-scriptable control layer.
@@ -9,7 +9,7 @@ modular UI layouts, and a Python-scriptable control layer.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                          RammpUI  (UE 5.7)                           │
+│                          RammpUI  (UE 5.8)                           │
 │                                                                      │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  ┌─────────────┐  │
 │  │  RammsCore  │  │CameraCapture │  │RammsAssets │  │  RammpUI    │  │
@@ -115,7 +115,7 @@ flowchart LR
             RCPS["Remote Control<br/>Preset (RCPS)"]
             RemoteDisp["BP_RAMMP_RemoteDisplay<br/>(IRammsRobotController)"]
             Subsystem["URammsUISubsystem<br/>Events · Properties · State"]
-            UIWidgets["UI Widgets<br/>(Arm, Mebot, Status, etc.)"]
+            UIWidgets["UI Widgets<br/>(Arm, RAMMP Gen1, Status, etc.)"]
         end
 
         subgraph CameraPath["Camera Data Path"]
@@ -238,7 +238,7 @@ flowchart TB
 |-------|-----------|-------------|---------|
 | `VisualizationLayerToggle` | Toolbar / UI widgets | BP_MobileDisplay (turning radius), BP_CollisionDetection (obstacle/dropoff layers) | Toggle visibility of 3D visualization overlays |
 | `HighlightChanged` | Toolbar / UI widgets | BP_MobileDisplay (chair outline), BP_CollisionDetection, BP_RAMMP_RemoteDisplay | Change highlight colors on robot meshes and overlays |
-| `OnRobotStateChanged` | BP_RAMMP_RemoteDisplay | Status panel, arm/mebot controllers, all subscribed widgets | Broadcast updated robot telemetry (speed, battery, mode, joint states) |
+| `OnRobotStateChanged` | BP_RAMMP_RemoteDisplay | Status panel, arm/RAMMP Gen1 controllers, all subscribed widgets | Broadcast updated robot telemetry (speed, battery, mode, joint states) |
 | `OnPropertyChanged` | BP_RAMMP_RemoteDisplay | Any widget observing a specific key | Notify that a key-value property in the store was modified |
 | `3DProjectionEnabled` | UI toggle | ProjectionManager | Switch between 2D decal and 3D PGM camera projection |
 | `PlanarProjectionEnabled` | UI toggle | BP_CameraProjection | Enable/disable planar decal projection mesh |
@@ -258,6 +258,7 @@ All plugins are **git submodules**. Clone with `--recurse-submodules` or run
 | **RammsCore** | Robot-specific components — skeletal pose, kinematic chains, Kinova Gen3 controller, wheelchair, gripper |
 | **CameraCapture** | UE scene capture → streaming bridge (RGB, depth, motion vectors, intrinsics/extrinsics) |
 | **RammsAssets** | Shared meshes, materials, and textures used across the project |
+| **RammsControl** | Control-surface model: how a robot describes the controls it offers, and how any input source drives them (RammsCore and RammsUI depend on it) |
 
 ### Plugin Dependency Chain
 
@@ -265,6 +266,8 @@ All plugins are **git submodules**. Clone with `--recurse-submodules` or run
 RammsUI ──→ RammsStreaming ──→ CameraCapture
   │
   └─ (uses) RammsCore, RammsAssets
+
+RammsCore, RammsUI ──→ RammsControl
 ```
 
 ## Key Features
@@ -320,7 +323,7 @@ camera, depth, or sensor channels without excess bandwidth.
 
 ### Prerequisites
 
-- **Unreal Engine 5.7** (source or launcher build)
+- **Unreal Engine 5.8** (source or launcher build)
 - **Visual Studio 2022** with C++ game development workload
 - **Python ≥ 3.10** (optional — for external tools via [ramms-tools](https://github.com/atdev-inc/ramms-tools))
 
@@ -330,11 +333,11 @@ camera, depth, or sensor channels without excess bandwidth.
 git clone --recurse-submodules git@github.com:atdev-inc/rammp-ui.git
 ```
 
-Open `RammpUI.uproject` in UE 5.7 Editor, or generate project files manually:
+Open `RammpUI.uproject` in UE 5.8 Editor, or generate project files manually:
 
 ```bash
 # Windows — generate VS solution
-"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\GenerateProjectFiles.bat" RammpUI.uproject
+"C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\GenerateProjectFiles.bat" RammpUI.uproject
 ```
 
 Then open `RammpUI.sln` in Visual Studio and build (Development Editor).
@@ -359,7 +362,8 @@ RammpUI/
 │   ├── RammsStreaming/      # RMSS binary streaming protocol
 │   ├── RammsCore/           # Robot components (arm, wheelchair, gripper)
 │   ├── CameraCapture/       # Scene capture → streaming bridge
-│   └── RammsAssets/         # Shared meshes, materials, textures
+│   ├── RammsAssets/         # Shared meshes, materials, textures
+│   └── RammsControl/        # Control-surface model (robot controls, input sources)
 ├── Scripts/                 # Standalone Python utilities
 │   ├── send_notification.py # Push notifications via Remote Control API
 │   └── set_status.py        # Update status panel via Remote Control API
@@ -415,10 +419,10 @@ Connect to RMSS port **30030** for frame streaming. Key commands:
 
 | Command | Description |
 |---------|-------------|
-| `ramms-tui` | Interactive terminal dashboard (arm, mebot, IMU, streaming) |
+| `ramms-tui` | Interactive terminal dashboard (arm, RAMMP Gen1, IMU, streaming) |
 | `ramms-kinova` | Kinova Gen3 arm control CLI |
 | `ramms-gripper` | Gripper control CLI |
-| `ramms-mebot` | Mebot motor control CLI |
+| `ramms-rammp-gen1` | RAMMP Gen1 motor control CLI |
 | `ramms-imu` | IMU data streaming with coordinate frame transforms |
 | `ramms-stream` | RMSS stream monitor (FPS, bandwidth, dropped frames) |
 | `ramms-stream-test` | Send synthetic or captured camera frames to UE |
@@ -433,7 +437,7 @@ Package from the editor (**Platforms → Windows → Package Project**) or via
 command line:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\RunUAT.bat" `
+& "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat" `
     BuildCookRun `
     -project="$PWD\RammpUI.uproject" `
     -targetplatform=Win64 -clientconfig=Development `
@@ -443,14 +447,14 @@ command line:
 
 ### Linux ARM64 (Nvidia Jetson)
 
-UE 5.7's bundled **RemoteControl** and **WebSocketNetworking** plugins restrict
+UE 5.8's bundled **RemoteControl** and **WebSocketNetworking** plugins restrict
 certain modules to `Win64 / Mac / Linux` via `PlatformAllowList`, which excludes
 `LinuxArm64`. To work around this the build script copies both plugins into the
 project, strips the allow-list, packages, then cleans up.
 
 **Prerequisites:**
 
-- UE 5.7 with Linux ARM64 cross-compilation toolchain installed (via Epic
+- UE 5.8 with Linux ARM64 cross-compilation toolchain installed (via Epic
   Games Launcher → Engine → Target Platforms → Linux ARM64).
 - PowerShell 5.1+ (included with Windows 10/11).
 
@@ -465,7 +469,7 @@ project, strips the allow-list, packages, then cleans up.
 
 | Parameter     | Default                                       | Description                              |
 |---------------|-----------------------------------------------|------------------------------------------|
-| `-EnginePath` | `C:\Program Files\Epic Games\UE_5.7`         | UE installation root                     |
+| `-EnginePath` | `C:\Program Files\Epic Games\UE_5.8`         | UE installation root                     |
 | `-Config`     | `Development`                                 | `Development` or `Shipping`              |
 | `-ArchiveDir` | `<Project>\Packaged\LinuxArm64`               | Output directory for the packaged build  |
 | `-NoClean`    | *(off)*                                       | Keep copied plugins after build          |
