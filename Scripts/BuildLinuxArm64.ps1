@@ -115,23 +115,23 @@ function Remove-PlatformAllowList([string]$UPluginPath) {
 #   -RCWebControlEnable         Web Remote Control (HTTP 30010, WebSocket
 #                               30020) is off outside the editor without it.
 # Arguments given to the script still follow.
+# -archive puts the package in a platform folder under -archivedirectory
+# (<ArchiveDir>\LinuxArm64), so the launcher is looked for there as well as
+# in <ArchiveDir> itself. Returns $false when no launcher got the defaults.
 function Set-JetsonLaunchDefaults([string]$PackageDir) {
-    $scripts = @(Get-ChildItem -Path $PackageDir -Filter "*.sh" -File)
-    if ($scripts.Count -eq 0) {
-        Write-Warning "No launch script in $PackageDir; launch defaults not added."
-        return
-    }
+    $scripts = @(Get-ChildItem -Path $PackageDir -Filter "*.sh" -File -Recurse -Depth 1)
     $pattern = '(?m)^("[^"\n]*/Binaries/LinuxArm64/[^"/\n]+") (\S+) "\$@"[ \t]*$'
+    $done = 0
     foreach ($script in $scripts) {
         $text = [IO.File]::ReadAllText($script.FullName) -replace "`r`n", "`n"
         if ($text.Contains("XMODIFIERS=@im=none")) {
-            Write-Host "Launch defaults already in $($script.Name)"
+            Write-Host "Launch defaults already in $($script.FullName)"
+            $done++
             continue
         }
         $match = [regex]::Match($text, $pattern)
         if (-not $match.Success) {
-            Write-Warning "Unexpected launch script $($script.FullName); launch defaults not added."
-            continue
+            continue   # not a UAT launcher (it runs no LinuxArm64 binary)
         }
         $launch = @(
             "# Added by Scripts/BuildLinuxArm64.ps1: no X input method, so GNOME's on-screen keyboard stays"
@@ -141,8 +141,15 @@ function Set-JetsonLaunchDefaults([string]$PackageDir) {
         ) -join "`n"
         $text = $text.Substring(0, $match.Index) + $launch + $text.Substring($match.Index + $match.Length)
         [IO.File]::WriteAllText($script.FullName, $text, (New-Object System.Text.UTF8Encoding $false))
-        Write-Host "Launch defaults (XMODIFIERS=@im=none, -RCWebControlEnable) added to $($script.Name)"
+        Write-Host "Launch defaults (XMODIFIERS=@im=none, -RCWebControlEnable) added to $($script.FullName)"
+        $done++
     }
+    if ($done -eq 0) {
+        $found = if ($scripts.Count) { ($scripts | ForEach-Object { $_.FullName }) -join ", " } else { "none" }
+        Write-Warning "No UAT launch script under $PackageDir (or one folder down; .sh files: $found): launch defaults not added."
+        return $false
+    }
+    return $true
 }
 
 # -- Step 1: Copy engine plugins into project -----------------------------
@@ -213,7 +220,11 @@ if ($NoClean) {
 # -- Result ----------------------------------------------------------------
 Write-Host ""
 if ($buildExitCode -eq 0) {
-    Set-JetsonLaunchDefaults $ArchiveDir
+    if (-not (Set-JetsonLaunchDefaults $ArchiveDir)) {
+        # The package runs, but GNOME's keyboard opens and Web Remote Control is off.
+        Write-Host "Build SUCCEEDED, but its launch script lacks the Jetson defaults. Output: $ArchiveDir" -ForegroundColor Red
+        exit 2
+    }
     Write-Host "Build SUCCEEDED. Output: $ArchiveDir" -ForegroundColor Green
 } else {
     Write-Host "Build FAILED (exit code $buildExitCode)." -ForegroundColor Red
