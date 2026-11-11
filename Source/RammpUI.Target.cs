@@ -11,5 +11,6 @@ public class RammpUITarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
 		ExtraModuleNames.Add("RammpUI");
+		ExtraModuleNames.Add("RammpUIStartup");
 	}
 }
