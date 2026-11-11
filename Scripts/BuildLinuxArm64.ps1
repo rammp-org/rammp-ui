@@ -11,6 +11,12 @@
       2. Strips PlatformAllowList from every module entry in their .uplugin files.
       3. Runs UnrealAutomationTool (UAT) to package for LinuxArm64.
       4. Cleans up the copied plugins regardless of build outcome.
+      5. Has the package's launch script start the app the way the Jetson
+         needs it (see Set-JetsonLaunchDefaults).
+
+    The Remote Control presets aren't referenced by the map they bind to, so
+    the cooker only includes them through DirectoriesToAlwaysCook in
+    Config/DefaultGame.ini (/RammsUI/UI holds RCP_RammsBridge).
 
 .PARAMETER EnginePath
     Root of the UE installation (default: C:\Program Files\Epic Games\UE_5.8).
@@ -99,6 +105,53 @@ function Remove-PlatformAllowList([string]$UPluginPath) {
     }
 }
 
+# -- Helper: launch defaults for the Jetson -------------------------------
+# UAT stages <Project>-Arm64.sh, which only runs the binary with the caller's
+# arguments. Its last line becomes:
+#   export XMODIFIERS=@im=none  SDL3 on X11 gives the X input method focus
+#                               whenever the window gains focus, which opens
+#                               GNOME's on-screen keyboard; with no input
+#                               method, it stays shut.
+#   -RCWebControlEnable         Web Remote Control (HTTP 30010, WebSocket
+#                               30020) is off outside the editor without it.
+# Arguments given to the script still follow.
+# -archive puts the package in a platform folder under -archivedirectory
+# (<ArchiveDir>\LinuxArm64), so the launcher is looked for there as well as
+# in <ArchiveDir> itself. Returns $false when no launcher got the defaults.
+function Set-JetsonLaunchDefaults([string]$PackageDir) {
+    $scripts = @(Get-ChildItem -Path $PackageDir -Filter "*.sh" -File -Recurse -Depth 1)
+    $pattern = '(?m)^("[^"\n]*/Binaries/LinuxArm64/[^"/\n]+") (\S+) "\$@"[ \t]*$'
+    $done = 0
+    foreach ($script in $scripts) {
+        $text = [IO.File]::ReadAllText($script.FullName) -replace "`r`n", "`n"
+        if ($text.Contains("XMODIFIERS=@im=none")) {
+            Write-Host "Launch defaults already in $($script.FullName)"
+            $done++
+            continue
+        }
+        $match = [regex]::Match($text, $pattern)
+        if (-not $match.Success) {
+            continue   # not a UAT launcher (it runs no LinuxArm64 binary)
+        }
+        $launch = @(
+            "# Added by Scripts/BuildLinuxArm64.ps1: no X input method, so GNOME's on-screen keyboard stays"
+            "# shut; Web Remote Control on (HTTP 30010, WebSocket 30020). Arguments given to this script follow."
+            "export XMODIFIERS=@im=none"
+            "$($match.Groups[1].Value) $($match.Groups[2].Value) -RCWebControlEnable " + '"$@"'
+        ) -join "`n"
+        $text = $text.Substring(0, $match.Index) + $launch + $text.Substring($match.Index + $match.Length)
+        [IO.File]::WriteAllText($script.FullName, $text, (New-Object System.Text.UTF8Encoding $false))
+        Write-Host "Launch defaults (XMODIFIERS=@im=none, -RCWebControlEnable) added to $($script.FullName)"
+        $done++
+    }
+    if ($done -eq 0) {
+        $found = if ($scripts.Count) { ($scripts | ForEach-Object { $_.FullName }) -join ", " } else { "none" }
+        Write-Warning "No UAT launch script under $PackageDir (or one folder down; .sh files: $found): launch defaults not added."
+        return $false
+    }
+    return $true
+}
+
 # -- Step 1: Copy engine plugins into project -----------------------------
 $copiedDirs = @()
 foreach ($plugin in $EnginePlugins) {
@@ -167,6 +220,11 @@ if ($NoClean) {
 # -- Result ----------------------------------------------------------------
 Write-Host ""
 if ($buildExitCode -eq 0) {
+    if (-not (Set-JetsonLaunchDefaults $ArchiveDir)) {
+        # The package runs, but GNOME's keyboard opens and Web Remote Control is off.
+        Write-Host "Build SUCCEEDED, but its launch script lacks the Jetson defaults. Output: $ArchiveDir" -ForegroundColor Red
+        exit 2
+    }
     Write-Host "Build SUCCEEDED. Output: $ArchiveDir" -ForegroundColor Green
 } else {
     Write-Host "Build FAILED (exit code $buildExitCode)." -ForegroundColor Red
