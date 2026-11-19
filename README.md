@@ -482,6 +482,45 @@ project, strips the allow-list, packages, then cleans up.
    files so that UBT compiles them for LinuxArm64.
 3. Runs `RunUAT BuildCookRun` targeting LinuxArm64.
 4. Deletes the copied plugins (unless `-NoClean` is passed).
+5. Edits the package's launch script (`RammpUI-Arm64.sh`). It puts a newer
+   Vulkan loader first on `LD_LIBRARY_PATH`, exports `XMODIFIERS=@im=none` (so
+   GNOME's on-screen keyboard stays shut) and passes `-RCWebControlEnable`.
+
+**On the device:**
+
+- **Vulkan loader.** UE 5.8 uses the system Vulkan loader only if it is newer
+  than 1.3.204, and has no loader of its own for ARM64. Ubuntu 22.04 ships
+  1.3.204, so the app stops at an "Unable to initialize Vulkan" box, which on
+  the device looks like a hang. The launch script puts
+  `$RAMMP_VULKAN_LOADER_DIR` first on `LD_LIBRARY_PATH`. It defaults to
+  `~/Vulkan-Loader/build/loader`, a local build of
+  [KhronosGroup/Vulkan-Loader](https://github.com/KhronosGroup/Vulkan-Loader)
+  (1.4.368 works; any loader newer than 1.3.204 should). If that directory has
+  no `libvulkan.so.1`, the script prints a warning and the system loader is
+  used. To use a different loader:
+  `RAMMP_VULKAN_LOADER_DIR=/path/to/loader ./RammpUI-Arm64.sh`. The log line
+  `Installed Vulkan Loader instance version` shows which version was loaded.
+- **Frame cap and scalability.** `Config/LinuxArm64/LinuxArm64GameUserSettings.ini`
+  caps the frame rate at 24 FPS and sets global illumination, shadows,
+  reflections, post-process and anti-aliasing to Medium (`1`). The other groups
+  stay at Epic. At reflections `1`, Lumen reflections are off and screen-space
+  reflections are used. Low is `0`, if the Orin needs more headroom.
+  - The cap must be `FrameRateLimit` in that file. At startup GameUserSettings
+    applies `FrameRateLimit` on top of any `t.MaxFPS` from an Engine ini, and
+    its default `0` means uncapped.
+  - These values are defaults. The device's own `GameUserSettings.ini`
+    overrides them, so a device that ran an older build keeps its old values.
+    That file is `<package>/RammpUI/Saved/Config/LinuxArm64/GameUserSettings.ini`
+    for a Development build, and replacing the package folder resets it. For a
+    Shipping build it is
+    `~/.config/Epic/RammpUI/Saved/Config/LinuxArm64/GameUserSettings.ini`, and
+    it survives redeploys.
+  - On such a device, **stop the app first** (it rewrites this file when it
+    exits). Then delete the `FrameRateLimit` and `sg.` lines from the file, or
+    delete the file, and start the app again.
+- **Check what is live** (Development build):
+  `./RammpUI-Arm64.sh -ExecCmds="t.MaxFPS,sg.GlobalIlluminationQuality,sg.ShadowQuality"`
+  writes each value, and what set it, to the log.
 
 > **Note:** The copied plugins are only needed during the build. They must not
 > be committed — the engine's own copies are used for Win64 editor/runtime.
