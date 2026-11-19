@@ -12,7 +12,8 @@
       3. Runs UnrealAutomationTool (UAT) to package for LinuxArm64.
       4. Cleans up the copied plugins regardless of build outcome.
       5. Has the package's launch script start the app the way the Jetson
-         needs it (see Set-JetsonLaunchDefaults).
+         needs it (see Set-JetsonLaunchDefaults): a newer Vulkan loader, no
+         X input method, Web Remote Control on.
 
     The Remote Control presets aren't referenced by the map they bind to, so
     the cooker only includes them through DirectoriesToAlwaysCook in
@@ -108,12 +109,23 @@ function Remove-PlatformAllowList([string]$UPluginPath) {
 # -- Helper: launch defaults for the Jetson -------------------------------
 # UAT stages <Project>-Arm64.sh, which only runs the binary with the caller's
 # arguments. Its last line becomes:
+#   LD_LIBRARY_PATH             UE 5.8 takes the system Vulkan loader only if
+#                               it is newer than 1.3.204, and has no loader of
+#                               its own for ARM64. Ubuntu 22.04's is 1.3.204,
+#                               so the app stops at an "Unable to initialize
+#                               Vulkan" box. A newer loader goes first on the
+#                               path: the directory in RAMMP_VULKAN_LOADER_DIR,
+#                               by default ~/Vulkan-Loader/build/loader (a local
+#                               build of KhronosGroup/Vulkan-Loader). Without
+#                               one there, it warns and uses the system's.
 #   export XMODIFIERS=@im=none  SDL3 on X11 gives the X input method focus
 #                               whenever the window gains focus, which opens
 #                               GNOME's on-screen keyboard; with no input
 #                               method, it stays shut.
 #   -RCWebControlEnable         Web Remote Control (HTTP 30010, WebSocket
-#                               30020) is off outside the editor without it.
+#                               30020). RammpUIStartup also adds it when the
+#                               command line has neither it nor
+#                               -RCWebControlDisable, so this is belt and braces.
 # Arguments given to the script still follow.
 # -archive puts the package in a platform folder under -archivedirectory
 # (<ArchiveDir>\LinuxArm64), so the launcher is looked for there as well as
@@ -121,27 +133,53 @@ function Remove-PlatformAllowList([string]$UPluginPath) {
 function Set-JetsonLaunchDefaults([string]$PackageDir) {
     $scripts = @(Get-ChildItem -Path $PackageDir -Filter "*.sh" -File -Recurse -Depth 1)
     $pattern = '(?m)^("[^"\n]*/Binaries/LinuxArm64/[^"/\n]+") (\S+) "\$@"[ \t]*$'
+    $inputMethod = "export XMODIFIERS=@im=none"
+    # Single-quoted: these are shell lines, and PowerShell would expand their $ in double quotes.
+    $vulkan = @(
+        '# Added by Scripts/BuildLinuxArm64.ps1: UE 5.8 needs a Vulkan loader newer than 1.3.204 and has none'
+        '# of its own for ARM64; Ubuntu 22.04 ships 1.3.204. So a newer one goes first on the library path.'
+        '# RAMMP_VULKAN_LOADER_DIR names its directory (default: a build of KhronosGroup/Vulkan-Loader in'
+        '# ~/Vulkan-Loader). Made absolute here: the app changes directory before it loads Vulkan.'
+        'RAMMP_VULKAN_LOADER_DIR="${RAMMP_VULKAN_LOADER_DIR:-$HOME/Vulkan-Loader/build/loader}"'
+        'case "$RAMMP_VULKAN_LOADER_DIR" in /*) ;; *) RAMMP_VULKAN_LOADER_DIR="$PWD/$RAMMP_VULKAN_LOADER_DIR" ;; esac'
+        'if [ -e "$RAMMP_VULKAN_LOADER_DIR/libvulkan.so.1" ]; then'
+        '    export LD_LIBRARY_PATH="$RAMMP_VULKAN_LOADER_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
+        'else'
+        '    echo "RammpUI: no libvulkan.so.1 in $RAMMP_VULKAN_LOADER_DIR, so the system Vulkan loader is used;" >&2'
+        '    echo "RammpUI: if it is 1.3.204 or older the app will not start. Set RAMMP_VULKAN_LOADER_DIR." >&2'
+        'fi'
+    ) -join "`n"
     $done = 0
     foreach ($script in $scripts) {
         $text = [IO.File]::ReadAllText($script.FullName) -replace "`r`n", "`n"
-        if ($text.Contains("XMODIFIERS=@im=none")) {
+        if ($text.Contains("RAMMP_VULKAN_LOADER_DIR")) {
             Write-Host "Launch defaults already in $($script.FullName)"
             $done++
             continue
         }
-        $match = [regex]::Match($text, $pattern)
-        if (-not $match.Success) {
-            continue   # not a UAT launcher (it runs no LinuxArm64 binary)
+        $at = $text.IndexOf($inputMethod)
+        if ($at -ge 0) {
+            # Patched by an earlier version of this script, before the Vulkan loader: add it
+            # ahead of that block (its comment, when it is there, starts the block).
+            $comment = $text.LastIndexOf("# Added by Scripts/BuildLinuxArm64.ps1", $at)
+            if ($comment -ge 0) { $at = $comment }
+            $text = $text.Substring(0, $at) + $vulkan + "`n" + $text.Substring($at)
+        } else {
+            $match = [regex]::Match($text, $pattern)
+            if (-not $match.Success) {
+                continue   # not a UAT launcher (it runs no LinuxArm64 binary)
+            }
+            $launch = @(
+                $vulkan
+                "# Added by Scripts/BuildLinuxArm64.ps1: no X input method, so GNOME's on-screen keyboard stays"
+                "# shut; Web Remote Control on (HTTP 30010, WebSocket 30020). Arguments given to this script follow."
+                $inputMethod
+                "$($match.Groups[1].Value) $($match.Groups[2].Value) -RCWebControlEnable " + '"$@"'
+            ) -join "`n"
+            $text = $text.Substring(0, $match.Index) + $launch + $text.Substring($match.Index + $match.Length)
         }
-        $launch = @(
-            "# Added by Scripts/BuildLinuxArm64.ps1: no X input method, so GNOME's on-screen keyboard stays"
-            "# shut; Web Remote Control on (HTTP 30010, WebSocket 30020). Arguments given to this script follow."
-            "export XMODIFIERS=@im=none"
-            "$($match.Groups[1].Value) $($match.Groups[2].Value) -RCWebControlEnable " + '"$@"'
-        ) -join "`n"
-        $text = $text.Substring(0, $match.Index) + $launch + $text.Substring($match.Index + $match.Length)
         [IO.File]::WriteAllText($script.FullName, $text, (New-Object System.Text.UTF8Encoding $false))
-        Write-Host "Launch defaults (XMODIFIERS=@im=none, -RCWebControlEnable) added to $($script.FullName)"
+        Write-Host "Launch defaults (Vulkan loader, XMODIFIERS=@im=none, -RCWebControlEnable) added to $($script.FullName)"
         $done++
     }
     if ($done -eq 0) {
@@ -221,7 +259,7 @@ if ($NoClean) {
 Write-Host ""
 if ($buildExitCode -eq 0) {
     if (-not (Set-JetsonLaunchDefaults $ArchiveDir)) {
-        # The package runs, but GNOME's keyboard opens and Web Remote Control is off.
+        # The package may not start on the system Vulkan loader, and GNOME's keyboard opens.
         Write-Host "Build SUCCEEDED, but its launch script lacks the Jetson defaults. Output: $ArchiveDir" -ForegroundColor Red
         exit 2
     }
