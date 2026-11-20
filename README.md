@@ -325,12 +325,12 @@ camera, depth, or sensor channels without excess bandwidth.
 
 - **Unreal Engine 5.8** (source or launcher build)
 - **Visual Studio 2022** with C++ game development workload
-- **Python ≥ 3.10** (optional — for external tools via [ramms-tools](https://github.com/atdev-inc/ramms-tools))
+- **Python ≥ 3.10** (optional — for external tools via [ramms-tools](https://github.com/rammp-org/ramms-tools))
 
 ### Clone & Build
 
 ```bash
-git clone --recurse-submodules git@github.com:atdev-inc/rammp-ui.git
+git clone --recurse-submodules git@github.com:rammp-org/rammp-ui.git
 ```
 
 Open `RammpUI.uproject` in UE 5.8 Editor, or generate project files manually:
@@ -407,8 +407,8 @@ color projectors and apply appropriate depth format scaling.
 
 ## Python Tools
 
-Install [ramms-tools](https://github.com/atdev-inc/ramms-tools) for external
-streaming clients, control, and monitoring:
+Install [ramms-tools](https://github.com/rammp-org/ramms-tools) for external
+streaming clients, control, monitoring, and replaying robot recordings:
 
 ```bash
 pip install -e path/to/ramms-tools          # Core library + CLI
@@ -428,6 +428,43 @@ Connect to RMSS port **30030** for frame streaming. Key commands:
 | `ramms-stream-test` | Send synthetic or captured camera frames to UE |
 | `ramms-notify` | Push UI notifications |
 | `ramms-status` | Update status panel (battery, speed, mode, e-stop) |
+| `ramms-bag` | Replay a ROS 2 bag recorded on the robot into the UI (see [Replaying robot recordings](#replaying-robot-recordings)) |
+| `ramms-ui-bridge-test` | Exercise every `RammsBridgeReceiver` surface the RAMMP UI bridge drives, without ROS ([docs](https://github.com/rammp-org/ramms-tools#ramms-ui-bridge-test--rammp-ui-bridge-interfaces)) |
+
+## Replaying robot recordings
+
+[`ramms-bag`](https://github.com/rammp-org/ramms-tools#ramms-bag--replay-a-recorded-rammp-bag-into-rammpui)
+(in ramms-tools) plays a ROS 2 bag recorded on the robot into this UI. It goes
+through the same interfaces the robot uses: RMSS for the cameras, and Remote
+Control (`RammsBridgeReceiver`) for the detected objects and the robot
+display's joints. Neither the robot nor a ROS install is needed, so the UI can
+be developed and checked against real data at a desk.
+
+```bash
+pip install -e path/to/ramms-tools
+# then, in UE 5.8: open RammpUI.uproject (Map_UI loads) and press Play
+ramms-bag info path/to/bag                               # what the recording holds, and what it can show
+ramms-bag play path/to/bag --start 25 --end 45           # cameras, objects, joints, wrist camera
+ramms-bag play path/to/bag --overlay segmentation        # the segmenter's masks and boxes in the overlay window
+ramms-bag play path/to/bag --positions derived --verify  # 2D only, as the bridge sends; check the 3D markers
+```
+
+A bag is a rosbag2 directory (`metadata.yaml` plus `.db3` files); extract a
+zipped one first.
+
+| In the UI | From the bag |
+|---|---|
+| Scene camera (`camera/scene/color`, `camera/scene/depth`) and its point cloud | The scene camera's colour and depth, with intrinsics and its pose from TF |
+| 2D boxes and POIs | The tracker's objects (`/perception/object_detections`), with staleness from real sightings |
+| 3D markers and labels: `RammsDetectionWorldMarkers` on Map_UI's `RammsStreamReceiver`, `RammsDetectionWorldLabels` in `W_RAMMS_UI` | Each object's 3D pose, or with `--positions derived` placed by RammsUI from depth |
+| Overlay window (`engine/overlay`, its depth and segmentation data streams) | The wrist camera, or the segmentation masks with the segmenter's boxes |
+| Robot display | The arm's `/joint_states` |
+
+When it ends (or on Ctrl-C) the UI is put back: detections cleared, the
+overlay window closed, joints restored. The full walkthrough is in ramms-tools'
+[Running a bag through RammpUI, step by step](https://github.com/rammp-org/ramms-tools#running-a-bag-through-rammpui-step-by-step).
+It covers showing the segmentation masks, what `--verify` checks, and what each
+error means.
 
 ## Packaging
 
